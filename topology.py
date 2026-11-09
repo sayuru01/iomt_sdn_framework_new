@@ -5,6 +5,7 @@ from mininet.link import TCLink
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
 import time
+import os
 
 def create_hospital_topology():
     info('*** Initializing Mininet for Hospital IoMT Network\n')
@@ -62,6 +63,65 @@ def create_hospital_topology():
 
     return net
 
+
+# ---------------------------------------------------------------------------
+# Hosts that must have a UDP listener on port 5005 running BEFORE simulators.
+# h1/h2/h3 are senders only — they are never targeted, so no listener needed.
+# ---------------------------------------------------------------------------
+LISTENER_HOSTS = ['h4', 'h5', 'h6', 'h7', 'h8', 'h9']
+LISTENER_PORT  = 5005
+LISTENER_SCRIPT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    'simulators', 'udp_listener.py'
+)
+
+
+def start_listeners(net):
+    """Launch a silent UDP discard listener on each receiver host (background).
+
+    The listener prevents ICMP port-unreachable replies when a simulator sends
+    a packet before the target host has anything bound on port 5005.
+    """
+    info('*** Starting UDP listeners (ports 5005 & 5006) on receiver hosts\n')
+    for hname in LISTENER_HOSTS:
+        h = net.get(hname)
+        # Pass host identity via env var so listener can log its own name
+        h.cmd(f'MININET_HOST={hname} python3 {LISTENER_SCRIPT} > '
+              f'/tmp/listener_{hname}.log 2>&1 &')
+
+    # Give listeners a moment to bind before we confirm
+    time.sleep(0.5)
+    _confirm_listeners(net)
+
+
+def _confirm_listeners(net):
+    """Check each receiver host has something bound on ports 5005 AND 5006.
+
+    Uses 'ss -ulnp' inside each host namespace (mininet runs each host in its
+    own network namespace, so ss reflects that host's sockets only).
+    If a listener failed to bind on either port, an explicit WARNING is printed.
+    """
+    info('*** Confirming UDP listeners are bound (ports 5005 & 5006)\n')
+    all_ok = True
+    for hname in LISTENER_HOSTS:
+        h = net.get(hname)
+        host_ok = True
+        for port in [5005, 5006]:
+            out = h.cmd(f'ss -ulnp sport = :{port}')
+            if str(port) in out:
+                info(f'    [{hname}] UDP {port} ✓ bound\n')
+            else:
+                info(f'    [{hname}] WARNING — UDP {port} NOT bound! '
+                     f'Check /tmp/listener_{hname}.log\n')
+                host_ok = False
+        if not host_ok:
+            all_ok = False
+    if all_ok:
+        info('*** All 6 listeners confirmed on ports 5005 & 5006 — safe to start simulators\n')
+    else:
+        info('*** WARNING: One or more listeners missing. '
+             'Start simulators only after fixing the above.\n')
+
 if __name__ == '__main__':
     # Set logging to see Mininet output
     setLogLevel('info')
@@ -72,7 +132,12 @@ if __name__ == '__main__':
     # Start the network
     info('*** Starting Network\n')
     hospital_net.start()
-    
+
+    # Start UDP listeners on receiver hosts BEFORE simulators are launched.
+    # h4, h5, h6, h7, h8, h9 each get a silent discard listener on port 5005.
+    # h1, h2, h3 are senders only — no listener needed.
+    start_listeners(hospital_net)
+
     # Open the Mininet Command Line Interface     
     info('*** Running CLI\n')
     CLI(hospital_net)

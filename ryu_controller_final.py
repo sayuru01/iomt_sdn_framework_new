@@ -17,7 +17,8 @@ FLOW_IDLE_TIMEOUT = 600
 IP_FLOW_PRIORITY = 10
 L2_FLOW_PRIORITY = 1
 
-LOG_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)   # create logs/ dir if not present
 HOST_BY_MAC = {f"00:00:00:00:00:{i:02d}": f"h{i}" for i in range(1, 11)}
 HOST_BY_IP = {f"10.0.0.{i}": f"h{i}" for i in range(1, 11)}
 ACCESS_DPID = {"h1": 1, "h2": 1, "h3": 1, "h10": 1, "h4": 2, "h5": 2, "h6": 2, "h7": 3, "h8": 3, "h9": 3}

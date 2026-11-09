@@ -18,14 +18,46 @@ from database.db_manager import safe_write
 SERVER_PORT = 5005
 
 
-def get_target_ip(host_id):
-    """Send to the NEXT device in the ring (h1->h2 ... h9->h1), never to self.
-    This avoids the loopback issue where a host sending to its own IP
-    never actually leaves its eth0 interface, making it invisible to
-    switch-level flow stats."""
-    n = int(host_id[1:])
-    next_n = (n % 9) + 1
-    return f'10.0.0.{next_n}'
+def get_all_targets(host_id):
+    """Return all target IPs for a host based on the confirmed topology map.
+
+    Topology (confirmed):
+        h1 (Ventilator)    -> h9
+        h2 (ICU Monitor)   -> h9, h7
+        h3 (Infusion Pump) -> h9
+        h4 (Pharmacy PC)   -> h6, h5, h9
+        h5 (Drug Dispenser)-> h6, h9
+        h6 (Pharmacy DB)   -> h7, h4
+        h7 (Admin PC)      -> h6, h9
+        h8 (Ward Monitor)  -> h9
+        h9 (Nurses Station)-> h6, h7, h8, h4
+    """
+    ALL_TARGETS = {
+        'h1': ['10.0.0.9'],
+        'h2': ['10.0.0.9', '10.0.0.7'],
+        'h3': ['10.0.0.9'],
+        'h4': ['10.0.0.6', '10.0.0.5', '10.0.0.9'],
+        'h5': ['10.0.0.6', '10.0.0.9'],
+        'h6': ['10.0.0.7', '10.0.0.4'],
+        'h7': ['10.0.0.6', '10.0.0.9'],
+        'h8': ['10.0.0.9'],
+        'h9': ['10.0.0.6', '10.0.0.7', '10.0.0.8', '10.0.0.4'],
+    }
+    return ALL_TARGETS[host_id]
+
+
+# Packets sent to EACH target per cycle (1 for medical devices, 50 for pharmacy/admin)
+PACKETS_PER_CYCLE = {
+    'h1': 1,
+    'h2': 1,
+    'h3': 1,
+    'h4': 50,
+    'h5': 50,
+    'h6': 50,
+    'h7': 50,
+    'h8': 1,
+    'h9': 50,
+}
 
 
 def save_to_database(host_id, device_type, vitals):
@@ -75,8 +107,9 @@ def run_simulator(host_id):
 
     device_type = CLINICAL_RANGES[host_id]['device_type']
     interval = get_interval(host_id)
-    target_ip = get_target_ip(host_id)
-    print(f"[*] Starting Simulator for {host_id} ({device_type}) — every {interval}s -> sending to {target_ip}")
+    targets = get_all_targets(host_id)
+    pkt_count = PACKETS_PER_CYCLE[host_id]
+    print(f"[*] Starting Simulator for {host_id} ({device_type}) — every {interval}s -> {pkt_count} pkt(s) each to {targets}")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -94,7 +127,9 @@ def run_simulator(host_id):
             # UDP send is OPTIONAL — never let it crash the simulator
             try:
                 message = json.dumps(payload).encode('utf-8')
-                sock.sendto(message, (target_ip, SERVER_PORT))
+                for _ip in targets:
+                    for _ in range(pkt_count):
+                        sock.sendto(message, (_ip, SERVER_PORT))
             except Exception as e:
                 print(f"[{host_id}] UDP send skipped: {e}")
 
