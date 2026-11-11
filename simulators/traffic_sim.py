@@ -5,6 +5,7 @@ import socket
 import json
 import time
 import argparse
+import random
 from datetime import datetime
 import sys
 import os
@@ -16,6 +17,18 @@ from clinical_ranges import generate_vitals, get_interval, CLINICAL_RANGES
 from database.db_manager import safe_write
 
 SERVER_PORT = 5005
+SECONDARY_PORT = 5006
+SECONDARY_PORT_PROB = 0.10  # 10% chance per cycle to also send on port 5006
+EXTRA_TARGET_PROB  = 0.10  # 10% chance per cycle to send to one extra off-map target
+
+# Extra (lateral-movement) target IP per jitter device — NOT in their normal connectivity map
+EXTRA_TARGET_IP = {
+    'h4': '10.0.0.7',  # h7
+    'h5': '10.0.0.4',  # h4
+    'h6': '10.0.0.9',  # h9
+    'h7': '10.0.0.5',  # h5
+    'h9': '10.0.0.6',  # h6  (note: h9 already talks to h6; kept for lateral-variance intent)
+}
 
 
 def get_all_targets(host_id):
@@ -29,7 +42,7 @@ def get_all_targets(host_id):
         h5 (Drug Dispenser)-> h6, h9
         h6 (Pharmacy DB)   -> h7, h4
         h7 (Admin PC)      -> h6, h9
-        h8 (Ward Monitor)  -> h9
+        h8 (Ward Monitor)  -> h9     
         h9 (Nurses Station)-> h6, h7, h8, h4
     """
     ALL_TARGETS = {
@@ -108,14 +121,26 @@ def run_simulator(host_id):
     device_type = CLINICAL_RANGES[host_id]['device_type']
     interval = get_interval(host_id)
     targets = get_all_targets(host_id)
-    pkt_count = PACKETS_PER_CYCLE[host_id]
-    print(f"[*] Starting Simulator for {host_id} ({device_type}) — every {interval}s -> {pkt_count} pkt(s) each to {targets}")
+
+    # h4, h5, h6, h7, h9 use per-cycle jitter; others use fixed count
+    USE_JITTER = host_id in ('h4', 'h5', 'h6', 'h7', 'h9')
+    base_pkt_count = PACKETS_PER_CYCLE[host_id]
+
+    print(f"[*] Starting Simulator for {host_id} ({device_type}) — every {interval}s -> "
+          f"{'~45-55 (jitter)' if USE_JITTER else base_pkt_count} pkt(s) each to {targets}")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     try:
         while True:
             vitals = generate_vitals(host_id)
+
+            # Per-cycle packet count: jitter for h4/h5/h6/h7/h9, fixed for others
+            # One value per cycle — same count applied to all targets this cycle
+            if USE_JITTER:
+                pkt_count = random.randint(45, 55)
+            else:
+                pkt_count = base_pkt_count
 
             payload = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
@@ -127,9 +152,30 @@ def run_simulator(host_id):
             # UDP send is OPTIONAL — never let it crash the simulator
             try:
                 message = json.dumps(payload).encode('utf-8')
+
+                # Per-cycle secondary port decision (h4/h5/h6/h7/h9 only)
+                # ONE coin-flip per cycle — same result applied to ALL targets
+                use_secondary = USE_JITTER and (random.random() < SECONDARY_PORT_PROB)
+
+                # Per-cycle lateral-movement decision — INDEPENDENT of use_secondary
+                # ONE coin-flip per cycle — extra target gets SAME pkt_count + SAME port logic
+                use_extra_target = USE_JITTER and (random.random() < EXTRA_TARGET_PROB)
+                extra_ip = EXTRA_TARGET_IP.get(host_id) if use_extra_target else None
+
                 for _ip in targets:
                     for _ in range(pkt_count):
                         sock.sendto(message, (_ip, SERVER_PORT))
+                    if use_secondary:
+                        for _ in range(pkt_count):
+                            sock.sendto(message, (_ip, SECONDARY_PORT))
+
+                # Send to extra (off-map) target if triggered this cycle
+                if extra_ip:
+                    for _ in range(pkt_count):
+                        sock.sendto(message, (extra_ip, SERVER_PORT))
+                    if use_secondary:
+                        for _ in range(pkt_count):
+                            sock.sendto(message, (extra_ip, SECONDARY_PORT))
             except Exception as e:
                 print(f"[{host_id}] UDP send skipped: {e}")
 
