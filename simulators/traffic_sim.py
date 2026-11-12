@@ -158,24 +158,35 @@ def run_simulator(host_id):
                 use_secondary = USE_JITTER and (random.random() < SECONDARY_PORT_PROB)
 
                 # Per-cycle lateral-movement decision — INDEPENDENT of use_secondary
-                # ONE coin-flip per cycle — extra target gets SAME pkt_count + SAME port logic
+                # ONE coin-flip per cycle — extra target triggers a redistribution, NOT extra volume
                 use_extra_target = USE_JITTER and (random.random() < EXTRA_TARGET_PROB)
                 extra_ip = EXTRA_TARGET_IP.get(host_id) if use_extra_target else None
 
-                for _ip in targets:
-                    for _ in range(pkt_count):
-                        sock.sendto(message, (_ip, SERVER_PORT))
-                    if use_secondary:
-                        for _ in range(pkt_count):
-                            sock.sendto(message, (_ip, SECONDARY_PORT))
+                # Build the full active target list for this cycle
+                active_targets = list(targets) + ([extra_ip] if extra_ip else [])
+                n_targets = len(active_targets)
 
-                # Send to extra (off-map) target if triggered this cycle
-                if extra_ip:
-                    for _ in range(pkt_count):
-                        sock.sendto(message, (extra_ip, SERVER_PORT))
+                # Per-target quota: total volume (pkt_count × original target count) stays
+                # constant regardless of PART 2 or PART 3 triggering.
+                # Distribute evenly; last target absorbs any remainder.
+                total_packets = pkt_count * len(targets)
+                base_per_target = total_packets // n_targets
+                remainder = total_packets % n_targets
+
+                for idx, _ip in enumerate(active_targets):
+                    # This target's share of the fixed total volume
+                    per_target = base_per_target + (1 if idx < remainder else 0)
+
+                    # PART 2: split per_target across both ports instead of sending extra packets
                     if use_secondary:
-                        for _ in range(pkt_count):
-                            sock.sendto(message, (extra_ip, SECONDARY_PORT))
+                        half = per_target // 2
+                        for _ in range(half):
+                            sock.sendto(message, (_ip, SERVER_PORT))
+                        for _ in range(per_target - half):
+                            sock.sendto(message, (_ip, SECONDARY_PORT))
+                    else:
+                        for _ in range(per_target):
+                            sock.sendto(message, (_ip, SERVER_PORT))
             except Exception as e:
                 print(f"[{host_id}] UDP send skipped: {e}")
 
