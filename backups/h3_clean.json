@@ -1,0 +1,26 @@
+{
+  "host": "h3",
+  "ip": "10.0.0.3",
+  "dpid": 1,
+  "flow_rules": [
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=1,nw_src=10.0.0.1,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.1,actions=output:1",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=2,nw_src=10.0.0.2,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.2,actions=output:2",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.4,actions=output:5",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=5,nw_src=10.0.0.4,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.5,actions=output:5",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=5,nw_src=10.0.0.5,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.6,actions=output:5",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=5,nw_src=10.0.0.6,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.7,actions=output:5",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=5,nw_src=10.0.0.7,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.8,actions=output:5",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=5,nw_src=10.0.0.8,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.9,actions=output:5",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=5,nw_src=10.0.0.9,nw_dst=10.0.0.3,actions=output:3",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=3,nw_src=10.0.0.3,nw_dst=10.0.0.10,actions=output:4",
+    "cookie=0x0,table=0,idle_timeout=600,priority=10,icmp,in_port=4,nw_src=10.0.0.10,nw_dst=10.0.0.3,actions=output:3"
+  ],
+  "hash": "da97db5cc07f6f0ce1a4c4cb601beb77d8a70a38c1e13958fa724755b265b810"
+}
